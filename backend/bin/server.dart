@@ -1,16 +1,39 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 import 'package:shelf_router/shelf_router.dart';
 
-// Configure routes.
-final _router = Router()
+// Cấu hình các routes
+final _router = Router(notFoundHandler: _notFoundHandler)
   ..get('/', _rootHandler)
-  ..get('/echo/<message>', _echoHandler);
+  ..get('/api/v1/check', _checkHandler)
+  ..get('/api/v1/echo/<message>', _echoHandler)
+  ..post('/api/v1/submit', _submitHandler);
+
+final _headers = {'Content-Type': 'application/json'};
+
+Response _notFoundHandler(Request req) {
+  return Response.notFound('Không tìm thấy đường dẫn "${req.url}" trên server');
+}
+
+// Hàm xử lý các yêu cầu gốc tại đường dẫn '/'
+//
+//trả về 1 phản hồi với thông điệp
+//
+//[reg]: đối tượng yêu cầu từ client
 
 Response _rootHandler(Request req) {
-  return Response.ok('Hello, World!\n');
+  return Response.ok(json.encode({'message': 'Hello, World!'}),
+      headers: _headers);
+}
+
+Response _checkHandler(Request req) {
+  return Response.ok(
+    json.encode({'message': 'Chào mừng bạn đến với web động'}),
+    headers: _headers,
+  );
 }
 
 Response _echoHandler(Request request) {
@@ -18,8 +41,37 @@ Response _echoHandler(Request request) {
   return Response.ok('$message\n');
 }
 
+Future<Response> _submitHandler(Request req) async {
+  try {
+    //
+    final payload = await req.readAsString();
+    final data = json.decode(payload);
+    final name = data['name'] as String?;
+
+    if (name != null && name.isNotEmpty) {
+      final response = {'message': 'chào mừng $name'};
+
+      return Response.ok(json.encode(response), headers: _headers);
+    } else {
+      final response = {'message': 'Yêu cầu không hợp lệ'};
+
+      return Response.badRequest(
+        body: json.encode(response),
+        headers: _headers,
+      );
+    }
+  } catch (e) {
+    final response = {'message': 'Yêu cầu không hợp lệ. Lỗi ${e.toString()}'};
+
+    return Response.badRequest(
+      body: json.encode(response),
+      headers: _headers,
+    );
+  }
+}
+
 void main(List<String> args) async {
-  // Use any available host or container IP (usually `0.0.0.0`).
+  // Use any available host or container IP (usually 0.0.0.0).
   final ip = InternetAddress.anyIPv4;
 
   // Configure a pipeline that logs requests.
